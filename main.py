@@ -16,7 +16,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load the ONNX model once when the server starts
 session = ort.InferenceSession("best.onnx", providers=["CPUExecutionProvider"])
 input_name = session.get_inputs()[0].name
 
@@ -27,7 +26,6 @@ NMS_THRESHOLD = 0.5
 
 
 def preprocess(frame):
-    """Resize frame to 640x640 and convert to the numeric format ONNX expects."""
     img = cv2.resize(frame, (INPUT_SIZE, INPUT_SIZE))
     img = img[:, :, ::-1]
     img = img.transpose(2, 0, 1)
@@ -37,7 +35,6 @@ def preprocess(frame):
 
 
 def postprocess(output, frame_width, frame_height):
-    """Turn the model's raw numeric output into actual (box, class, confidence) detections."""
     predictions = np.squeeze(output[0]).T
 
     boxes = []
@@ -63,6 +60,9 @@ def postprocess(output, frame_width, frame_height):
         scores.append(float(confidence))
         class_ids.append(class_id)
 
+    if len(boxes) == 0:
+        return []
+
     indices = cv2.dnn.NMSBoxes(boxes, scores, CONF_THRESHOLD, NMS_THRESHOLD)
 
     results = []
@@ -82,12 +82,17 @@ def draw_boxes(frame, detections):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
     return frame
 
+
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
+
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+def predict(file: UploadFile = File(...)):
     input_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
     with open(input_path, "wb") as f:
-        f.write(await file.read())
-    print("File saved, starting video capture", flush=True)
+        f.write(file.file.read())
 
     cap = cv2.VideoCapture(input_path)
     fps = cap.get(cv2.CAP_PROP_FPS) or 25
@@ -98,7 +103,6 @@ async def predict(file: UploadFile = File(...)):
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
-    frame_count = 0
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -110,38 +114,8 @@ async def predict(file: UploadFile = File(...)):
         annotated_frame = draw_boxes(frame, detections)
         out.write(annotated_frame)
 
-        frame_count += 1
-        print(f"Processed frame {frame_count}", flush=True)
-
-    print("Loop finished, releasing capture", flush=True)
-    cap.release()
-    print("Capture released, releasing writer", flush=True)
-    out.release()
-    print("Writer released, removing input file", flush=True)
-    os.remove(input_path)
-
-    output_size = os.path.getsize(output_path)
-    print(f"Output file ready, size: {output_size} bytes", flush=True)
-
-    print("Returning FileResponse now", flush=True)
-    return FileResponse(output_path, media_type="video/mp4")
-    frame_count = 0
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        input_tensor = preprocess(frame)
-        output = session.run(None, {input_name: input_tensor})
-        detections = postprocess(output, width, height)
-        annotated_frame = draw_boxes(frame, detections)
-        out.write(annotated_frame)
-
-        frame_count += 1
-        print(f"Processed frame {frame_count}", flush=True)
-
     cap.release()
     out.release()
     os.remove(input_path)
 
-    return FileResponse(output_path, media_type="video/mp4")
+    return FileResponse(output_path, media_type="video/mp4", filename="result.mp4")
