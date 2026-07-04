@@ -86,6 +86,7 @@ def draw_boxes(frame, detections):
 
 
 @app.post("/predict")
+@app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     input_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
     with open(input_path, "wb") as f:
@@ -100,6 +101,26 @@ async def predict(file: UploadFile = File(...)):
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
+    frame_count = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        input_tensor = preprocess(frame)
+        output = session.run(None, {input_name: input_tensor})
+        detections = postprocess(output, width, height)
+        annotated_frame = draw_boxes(frame, detections)
+        out.write(annotated_frame)
+
+        frame_count += 1
+        print(f"Processed frame {frame_count}", flush=True)
+
+    cap.release()
+    out.release()
+    os.remove(input_path)
+
+    return FileResponse(output_path, media_type="video/mp4")
    frame_count = 0
     while True:
         ret, frame = cap.read()
