@@ -100,6 +100,7 @@ async def predict(file: UploadFile = File(...)):
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
+   frame_count = 0
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -110,6 +111,9 @@ async def predict(file: UploadFile = File(...)):
         detections = postprocess(output, width, height)
         annotated_frame = draw_boxes(frame, detections)
         out.write(annotated_frame)
+
+        frame_count += 1
+        print(f"Processed frame {frame_count}", flush=True)
 
     cap.release()
     out.release()
