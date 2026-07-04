@@ -90,19 +90,24 @@ def root():
 
 @app.post("/predict")
 def predict(file: UploadFile = File(...)):
+    print("REQUEST RECEIVED", flush=True)
+
     input_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
     with open(input_path, "wb") as f:
         f.write(file.file.read())
+    print("File saved to disk", flush=True)
 
     cap = cv2.VideoCapture(input_path)
     fps = cap.get(cv2.CAP_PROP_FPS) or 25
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"Video opened: {width}x{height} @ {fps}fps", flush=True)
 
     output_path = f"/tmp/{uuid.uuid4()}_output.mp4"
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
+    frame_count = 0
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -114,8 +119,15 @@ def predict(file: UploadFile = File(...)):
         annotated_frame = draw_boxes(frame, detections)
         out.write(annotated_frame)
 
+        frame_count += 1
+        print(f"Frame {frame_count} done", flush=True)
+
+    print("Loop finished", flush=True)
     cap.release()
     out.release()
     os.remove(input_path)
+
+    output_size = os.path.getsize(output_path)
+    print(f"Output ready: {output_size} bytes. Sending response now.", flush=True)
 
     return FileResponse(output_path, media_type="video/mp4", filename="result.mp4")
