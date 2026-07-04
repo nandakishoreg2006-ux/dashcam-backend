@@ -29,16 +29,16 @@ NMS_THRESHOLD = 0.5
 def preprocess(frame):
     """Resize frame to 640x640 and convert to the numeric format ONNX expects."""
     img = cv2.resize(frame, (INPUT_SIZE, INPUT_SIZE))
-    img = img[:, :, ::-1]  # BGR (OpenCV default) -> RGB (model's expected format)
-    img = img.transpose(2, 0, 1)  # HWC -> CHW (channels-first, what the model expects)
-    img = img.astype(np.float32) / 255.0  # scale pixel values 0-255 down to 0-1
-    img = np.expand_dims(img, axis=0)  # add a "batch" dimension: shape becomes (1, 3, 640, 640)
+    img = img[:, :, ::-1]
+    img = img.transpose(2, 0, 1)
+    img = img.astype(np.float32) / 255.0
+    img = np.expand_dims(img, axis=0)
     return img
 
 
 def postprocess(output, frame_width, frame_height):
     """Turn the model's raw numeric output into actual (box, class, confidence) detections."""
-    predictions = np.squeeze(output[0]).T  # reshape to (num_boxes, 4 + num_classes)
+    predictions = np.squeeze(output[0]).T
 
     boxes = []
     scores = []
@@ -54,7 +54,6 @@ def postprocess(output, frame_width, frame_height):
 
         cx, cy, w, h = pred[0], pred[1], pred[2], pred[3]
 
-        # Scale box coordinates from 640x640 model-space back to the real frame size
         x1 = (cx - w / 2) / INPUT_SIZE * frame_width
         y1 = (cy - h / 2) / INPUT_SIZE * frame_height
         box_w = w / INPUT_SIZE * frame_width
@@ -64,7 +63,6 @@ def postprocess(output, frame_width, frame_height):
         scores.append(float(confidence))
         class_ids.append(class_id)
 
-    # Remove overlapping duplicate boxes for the same object (Non-Max Suppression)
     indices = cv2.dnn.NMSBoxes(boxes, scores, CONF_THRESHOLD, NMS_THRESHOLD)
 
     results = []
@@ -86,8 +84,6 @@ def draw_boxes(frame, detections):
 
 
 @app.post("/predict")
-@app.post("/predict")
-@app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     input_path = f"/tmp/{uuid.uuid4()}_{file.filename}"
     with open(input_path, "wb") as f:
@@ -103,46 +99,6 @@ async def predict(file: UploadFile = File(...)):
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     frame_count = 0
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        input_tensor = preprocess(frame)
-        output = session.run(None, {input_name: input_tensor})
-        detections = postprocess(output, width, height)
-        annotated_frame = draw_boxes(frame, detections)
-        out.write(annotated_frame)
-
-        frame_count += 1
-        print(f"Processed frame {frame_count}", flush=True)
-
-    cap.release()
-    out.release()
-    os.remove(input_path)
-
-    return FileResponse(output_path, media_type="video/mp4")
-    frame_count = 0
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        input_tensor = preprocess(frame)
-        output = session.run(None, {input_name: input_tensor})
-        detections = postprocess(output, width, height)
-        annotated_frame = draw_boxes(frame, detections)
-        out.write(annotated_frame)
-
-        frame_count += 1
-        print(f"Processed frame {frame_count}", flush=True)
-
-    cap.release()
-    out.release()
-    os.remove(input_path)
-
-    return FileResponse(output_path, media_type="video/mp4")
-   frame_count = 0
     while True:
         ret, frame = cap.read()
         if not ret:
