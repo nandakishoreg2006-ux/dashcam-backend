@@ -98,7 +98,7 @@ async def predict(file: UploadFile = File(...)):
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     output_path = f"/tmp/{uuid.uuid4()}_output.mp4"
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cv2.VideoWriter_fourcc(*"avc1")
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     frame_count = 0
